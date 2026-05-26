@@ -12,8 +12,8 @@ public class PlayerHurtState : IPlayerState
         AudioManager.Instance.PlaySFX("Hurt");
 
         // Knockback
-        float dir = sm.transform.position.x < sm.DamageSourceX ? -1f : 1f;
-        sm.Rb.velocity = new Vector2(dir * sm.Data.knockbackForce, sm.Data.knockbackForce * 0.5f);
+        //float dir = sm.transform.position.x < sm.DamageSourceX ? -1f : 1f;
+        //sm.Rb.velocity = new Vector2(dir * sm.Data.knockbackForce, sm.Data.knockbackForce * 0.5f);
     }
 
     public void Update(PlayerStateMachine sm)

@@ -1,37 +1,38 @@
-﻿using UnityEngine;
+﻿
+using UnityEngine;
 using System;
 
 public enum GameState { MainMenu, Playing, Paused, LevelComplete, GameOver, Loading }
 
 public class GameManager : Singleton<GameManager>
 {
-    // Game State
+    // State
     public GameState CurrentState { get; private set; }
     public static event Action<GameState> OnGameStateChanged;
 
     // Progress
     public int CurrentLevel { get; private set; } = 1;
     public int TotalScore { get; private set; } = 0;
+    public int HighScore { get; private set; } = 0;
     public int Lives { get; private set; } = 3;
     public int FruitsCollected { get; private set; } = 0;
-
-    // Level Score
     public int LevelScore { get; private set; } = 0;
     public int LevelFruits { get; private set; } = 0;
-   
 
     [Header("Level Data")]
     [SerializeField] private LevelData[] allLevels;
+
+    [Header("Settings")]
+    [SerializeField] private int startingLives = 3;
 
     // Timer
     private float currentTime = 0f;
     private bool timerRunning = false;
 
-    // Save Keys
-    private const string SAVE_SCORE = "TotalScore";
-    private const string SAVE_LEVEL = "HighestLevel";
-    private const string SAVE_LIVES = "Lives";
+    // Save data reference
+    private GameSaveData saveData;
 
+    
     protected override void Awake()
     {
         base.Awake();
@@ -44,7 +45,6 @@ public class GameManager : Singleton<GameManager>
 
         currentTime -= Time.deltaTime;
         currentTime = Mathf.Max(currentTime, 0f);
-
         UIEvents.OnTimerChanged?.Invoke(currentTime);
 
         if (currentTime <= 0f)
@@ -73,22 +73,29 @@ public class GameManager : Singleton<GameManager>
             case GameState.GameOver:
                 Time.timeScale = 0f;
                 AudioManager.Instance?.PlaySFX("GameOver");
-               
                 UIEvents.OnGameOver?.Invoke(LevelScore, LevelFruits);
-                
                 LevelManager.Instance?.ClearCheckpoint();
-                
+                // Save high score if beaten
+                if (LevelScore > HighScore)
+                {
+                    HighScore = LevelScore;
+                    saveData.highScore = HighScore;
+                    SaveSystem.Save(saveData);
+                }
+                SaveSystem.SubmitScore(TotalScore);
                 break;
 
             case GameState.LevelComplete:
                 Time.timeScale = 0f;
                 AudioManager.Instance?.PlaySFX("LevelComplete");
-                
                 UIEvents.OnLevelComplete?.Invoke(LevelScore, LevelFruits);
-                
                 break;
 
             case GameState.Loading:
+                Time.timeScale = 1f;
+                break;
+
+            case GameState.MainMenu:
                 Time.timeScale = 1f;
                 break;
         }
@@ -99,11 +106,7 @@ public class GameManager : Singleton<GameManager>
     //TIMER
     public void StartLevelTimer(float timeLimit)
     {
-        if (timeLimit <= 0f)
-        {
-            timerRunning = false;
-            return;
-        }
+        if (timeLimit <= 0f) { timerRunning = false; return; }
         currentTime = timeLimit;
         timerRunning = true;
         UIEvents.OnTimerChanged?.Invoke(currentTime);
@@ -115,9 +118,9 @@ public class GameManager : Singleton<GameManager>
     //SCORE
     public void AddScore(int points)
     {
+        if (points <= 0) return;
         TotalScore += points;
-        LevelScore += points;   
-        //show level score on HUD (not total)
+        LevelScore += points;
         UIEvents.OnScoreChanged?.Invoke(LevelScore);
     }
 
@@ -125,7 +128,7 @@ public class GameManager : Singleton<GameManager>
     public void CollectFruit()
     {
         FruitsCollected++;
-        LevelFruits++;      
+        LevelFruits++;
         AddScore(100);
         UIEvents.OnFruitsChanged?.Invoke(FruitsCollected);
     }
@@ -133,9 +136,10 @@ public class GameManager : Singleton<GameManager>
     public void ResetFruits()
     {
         FruitsCollected = 0;
-        LevelScore = 0;    
-        LevelFruits = 0;     
-        UIEvents.OnFruitsChanged?.Invoke(FruitsCollected);
+        LevelScore = 0;
+        LevelFruits = 0;
+        UIEvents.OnFruitsChanged?.Invoke(0);
+        UIEvents.OnScoreChanged?.Invoke(0);
     }
 
     //LIVES
@@ -143,22 +147,17 @@ public class GameManager : Singleton<GameManager>
     {
         Lives--;
         UIEvents.OnLivesChanged?.Invoke(Lives);
-
         if (Lives <= 0)
             SetGameState(GameState.GameOver);
         else
-            LevelManager.Instance.RestartLevel();
+            LevelManager.Instance?.RestartLevel();
     }
 
     public void TriggerGameOver()
     {
         StopTimer();
-
-        
         if (CurrentState == GameState.GameOver)
             CurrentState = GameState.Playing;
-        
-
         SetGameState(GameState.GameOver);
     }
 
@@ -182,31 +181,49 @@ public class GameManager : Singleton<GameManager>
         return allLevels[index - 1];
     }
 
-    //SAVE
+    public bool IsLevelUnlocked(int levelIndex)
+        => SaveSystem.IsLevelUnlocked(levelIndex);
+
+    //SAVE / LOAD
     private void SaveProgress()
     {
-        PlayerPrefs.SetInt(SAVE_SCORE, TotalScore);
-        PlayerPrefs.SetInt(SAVE_LEVEL, Mathf.Max(CurrentLevel, PlayerPrefs.GetInt(SAVE_LEVEL, 1)));
-        PlayerPrefs.SetInt(SAVE_LIVES, Lives);
-        PlayerPrefs.Save();
+        saveData.totalScore = TotalScore;
+        saveData.lives = Lives;
+        saveData.highScore = Mathf.Max(saveData.highScore, LevelScore);
+
+        // Unlock next level
+        int nextLevel = LevelManager.Instance != null
+            ? LevelManager.Instance.CurrentLevelIndex + 1
+            : CurrentLevel + 1;
+
+        SaveSystem.UnlockLevel(nextLevel);
+        saveData.highestLevel = Mathf.Max(saveData.highestLevel, nextLevel - 1);
+
+        SaveSystem.Save(saveData);
     }
 
     private void LoadProgress()
     {
-        TotalScore = PlayerPrefs.GetInt(SAVE_SCORE, 0);
-        Lives = PlayerPrefs.GetInt(SAVE_LIVES, 3);
+        saveData = SaveSystem.Load();
+        TotalScore = saveData.totalScore;
+        HighScore = saveData.highScore;
+        Lives = saveData.lives > 0 ? saveData.lives : startingLives;
     }
 
     public void ResetGame()
     {
         TotalScore = 0;
-        Lives = 3;
+        Lives = startingLives;
         FruitsCollected = 0;
         LevelScore = 0;
         LevelFruits = 0;
         CurrentLevel = 1;
         StopTimer();
-        PlayerPrefs.DeleteAll();
+        SaveSystem.DeleteSave();
+        saveData = SaveSystem.Load(); // fresh save
+        UIEvents.OnLivesChanged?.Invoke(Lives);
+        UIEvents.OnScoreChanged?.Invoke(0);
+        UIEvents.OnFruitsChanged?.Invoke(0);
     }
 }
 
@@ -219,7 +236,21 @@ public static class UIEvents
     public static Action<float> OnHealthChanged;
     public static Action<float> OnTimerChanged;
     public static Action<PowerUpData> OnPowerUpCollected;
+    public static Action<int> OnAmmoChanged;
+    public static Action<int, int> OnLevelComplete;   // score, fruits
+    public static Action<int, int> OnGameOver;        // score, fruits
 
-    public static Action<int, int> OnLevelComplete;  
-    public static Action<int, int> OnGameOver;       
+    //Clear all subscribers — call on scene unload to prevent leaks
+    public static void ClearAll()
+    {
+        OnScoreChanged = null;
+        OnLivesChanged = null;
+        OnFruitsChanged = null;
+        OnHealthChanged = null;
+        OnTimerChanged = null;
+        OnPowerUpCollected = null;
+        OnAmmoChanged = null;
+        OnLevelComplete = null;
+        OnGameOver = null;
+    }
 }

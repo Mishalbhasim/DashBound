@@ -55,23 +55,22 @@ public abstract class EnemyBase : MonoBehaviour
     {
         if (!col.gameObject.CompareTag("Player")) return;
 
-        
+        Rigidbody2D playerRb = col.gameObject.GetComponent<Rigidbody2D>();
+
         if (col.contacts[0].normal.y < -0.5f)
         {
-            
-            TakeDamage(999);
-            col.gameObject.GetComponent<Rigidbody2D>().velocity =
-                new Vector2(col.gameObject.GetComponent<Rigidbody2D>().velocity.x, 12f);
+            // Stomped from above — kill enemy
+            TakeDamage(9999);
+
+            if (playerRb != null)
+                playerRb.velocity = new Vector2(playerRb.velocity.x, 12f);
         }
         else
         {
-            PlayerStateMachine playerSM = col.gameObject.GetComponent<PlayerStateMachine>();
-            if (playerSM != null)
-            {
-                playerSM.DamageSourceX = transform.position.x;
-            }
-
-            col.gameObject.GetComponent<PlayerHealth>()?.TakeDamage(data.damageToPlayer);
+            // Side collision — damage player
+            // Knockback direction now handled by PlayerHurtState using IsFacingRight
+            col.gameObject.GetComponent<PlayerHealth>()
+                ?.TakeDamage(data.damageToPlayer);
         }
     }
 }

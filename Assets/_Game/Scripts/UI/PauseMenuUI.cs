@@ -27,8 +27,10 @@ public class PauseMenuUI : MonoBehaviour
         }
     }
 
-    public void OnMusicSliderChanged(float v) => AudioManager.Instance.SetMusicVolume(v);
-    public void OnSFXSliderChanged(float v) => AudioManager.Instance.SetSFXVolume(v);
+    
+    public void OnMasterSliderChanged(float v) => AudioManager.Instance?.SetMasterVolume(v);
+    public void OnMusicSliderChanged(float v) => AudioManager.Instance?.SetMusicVolume(v);
+    public void OnSFXSliderChanged(float v) => AudioManager.Instance?.SetSFXVolume(v);
     public void OnResumeClicked() => TogglePause();
 
     public void OnRestartClicked()

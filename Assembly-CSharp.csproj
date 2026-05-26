@@ -141,6 +141,7 @@
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\Benchmark03.cs" />
     <Compile Include="Assets\_Game\Scripts\Player\PlayerHealth.cs" />
     <Compile Include="Assets\_Game\Scripts\Enemies\TrunkBoss\TrunkBoss.cs" />
+    <Compile Include="Assets\_Game\Scripts\Core\SaveSystem.cs" />
     <Compile Include="Assets\_Game\Scripts\Items\PowerUp.cs" />
     <Compile Include="Assets\_Game\Scripts\Enemies\SpikeTrap.cs" />
     <Compile Include="Assets\_Game\Scripts\Platforms\SplinePath.cs" />

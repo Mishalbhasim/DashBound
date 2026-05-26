@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿
+using UnityEngine;
 
 public class PlayerStateMachine : MonoBehaviour
 {
@@ -14,28 +15,27 @@ public class PlayerStateMachine : MonoBehaviour
     //Current State
     public IPlayerState CurrentState { get; private set; }
 
-    //Component Reference
+    //Component References (set by PlayerController)
     public PlayerController Controller { get; set; }
     public Rigidbody2D Rb { get; set; }
     public PlayerAnimator Anim { get; set; }
     public PlayerData Data { get; set; }
 
-    //Input Cache
-    public float InputX { get; set; }
-    public bool JumpPressed { get; set; }
-    public bool JumpHeld { get; set; }
-    public bool JumpReleased { get; set; }
+    //Input Cache (updated every frame)
+    public float InputX { get; private set; }
+    public bool JumpPressed { get; private set; }
+    public bool JumpHeld { get; private set; }
+    public bool JumpReleased { get; private set; }
 
     //Physics State
     public bool IsGrounded { get; set; }
     public bool IsFacingRight { get; set; } = true;
     public bool CanDoubleJump { get; set; }
 
-    public float DamageSourceX { get; set; }
-
     //Timers
     public float CoyoteTimer { get; set; }
     public float JumpBufferTimer { get; set; }
+
 
     public void Initialize(IPlayerState startState)
     {
@@ -45,16 +45,23 @@ public class PlayerStateMachine : MonoBehaviour
 
     public void ChangeState(IPlayerState newState)
     {
+        if (newState == null)
+        {
+            Debug.LogWarning("[PlayerStateMachine] Tried to change to null state");
+            return;
+        }
+
         CurrentState?.Exit(this);
         CurrentState = newState;
         CurrentState.Enter(this);
     }
 
+    
     private void Update()
     {
         CacheInput();
         CurrentState?.Update(this);
-        UpdateTimers();
+        TickTimers();
     }
 
     private void FixedUpdate() => CurrentState?.FixedUpdate(this);
@@ -65,13 +72,15 @@ public class PlayerStateMachine : MonoBehaviour
         JumpPressed = Input.GetButtonDown("Jump");
         JumpHeld = Input.GetButton("Jump");
         JumpReleased = Input.GetButtonUp("Jump");
-
-        
     }
 
-    private void UpdateTimers()
+    private void TickTimers()
     {
         if (CoyoteTimer > 0) CoyoteTimer -= Time.deltaTime;
         if (JumpBufferTimer > 0) JumpBufferTimer -= Time.deltaTime;
     }
+
+    //Debug
+    public string GetCurrentStateName()
+        => CurrentState?.GetType().Name ?? "None";
 }
